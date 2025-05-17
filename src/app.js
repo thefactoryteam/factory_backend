@@ -25,9 +25,9 @@ app.use(
   pinoHttp({
     logger,
     customLogLevel: (res, err) => {
-      if (err || res.statusCode >= 500) return "error"; // Server errors
-      if (res.statusCode >= 400) return "warn"; // Client errors
-      return "info"; // Successful requests
+      if (err || res.statusCode >= 500) return "error"; // Log as error for server errors
+      if (res.statusCode >= 400) return "warn"; // Log as warn for client errors
+      return "info"; // Log as info for successful requests
     },
     serializers: {
       req: (req) => ({
@@ -38,6 +38,9 @@ app.use(
       res: (res) => ({
         statusCode: res.statusCode,
       }),
+    },
+    autoLogging: {
+      ignorePaths: ["/health"], // Ignore health check logs if not needed
     },
   })
 );
