@@ -16,9 +16,9 @@ export const simpleNewsletterService = async ({ name, email }) => {
     const newSubscriber = await Newsletter.create({ name, email });
 
     const transporter = nodemailer.createTransport({
-        host: "smtp.hostinger.com",
-        port: 587,
-        // secure: true,
+        host: "smtp.titan.email",
+        port: 465,
+        secure: true,
         auth: {
             user: process.env.HOSTINGER_EMAIL,
             pass: process.env.HOSTINGER_EMAIL_PASSWORD
