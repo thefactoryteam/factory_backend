@@ -14,6 +14,9 @@ import connectDB from './config/database.js';
 // initialize our entire express app
 const app = express()
 
+// Enable trust proxy for reverse proxies like Render
+app.set("trust proxy", 1); // 1 means trust the first proxy
+
 // connect to database
 connectDB()
 
