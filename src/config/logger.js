@@ -1,9 +1,5 @@
 import pino from 'pino';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const pinoPrettyPath = require.resolve('pino-pretty');
 
 const levels = {
   emerg: 80,
