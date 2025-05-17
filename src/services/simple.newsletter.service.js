@@ -1,45 +1,25 @@
-import logger from "../config/logger.js"
-import AppError from "../middlewares/errorHandler.js"
-import Newsletter from "../models/newsletter.model.js"
-import nodemailer from "nodemailer"
-import dotenv from "dotenv"
-dotenv.config()
-
+import Newsletter from "../models/newsletter.model.js";
+import { sendWelcomeEmail } from "./email/templates/email.service.simple.js";
+import AppError from "../middlewares/errorHandler.js";
 
 export const simpleNewsletterService = async ({ name, email }) => {
-    const existingSubscriber = await Newsletter.findOne({ email })
+  // Check if the email is already subscribed
+  const existingSubscriber = await Newsletter.findOne({ email });
+  if (existingSubscriber) {
+    throw new AppError("This email is already subscribed to the newsletter.", 400);
+  }
 
-    if (existingSubscriber) {
-        throw new AppError("This email is already subscribe to the newsletter.", 400)
-    }
+  // Save the subscription to the database
+  const newSubscriber = await Newsletter.create({ name, email });
 
-    const newSubscriber = await Newsletter.create({ name, email });
+  // Send welcome email
+  try {
+    await sendWelcomeEmail({ name, email });
+  } catch (error) {
+    // Rollback the subscription if email fails
+    await Newsletter.findByIdAndDelete(newSubscriber._id);
+    throw new AppError("Failed to send confirmation email. Please try again later.", 500);
+  }
 
-    const transporter = nodemailer.createTransport({
-        host: "smtp.titan.email",
-        port: 465,
-        secure: true,
-        auth: {
-            user: process.env.HOSTINGER_EMAIL,
-            pass: process.env.HOSTINGER_EMAIL_PASSWORD
-        }
-    })
-
-    // Email content
-    const mailOptions = {
-        from: '"TechFactory" <info@techfactory.xyz>', // Sender address
-        to: email, // Recipient
-        subject: "Welcome to TechFactory Newsletter!",
-        text: `Hi ${name},\n\nThank you for subscribing to our newsletter! Stay tuned for updates.\n\nBest regards,\nTechFactory Team`,
-        html: `<p>Hi ${name},</p><p>Thank you for subscribing to our newsletter! Stay tuned for updates.</p><p>Best regards,<br>TechFactory Team</p>`,
-    };
-
-    try {
-        await transporter.sendMail(mailOptions)
-    } catch (error) {
-        logger.error({ err: error }, "Failed to send confirmatin email. Please try again later")
-        throw error
-    }
-
-    return newSubscriber
-}
+  return newSubscriber;
+};
