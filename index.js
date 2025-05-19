@@ -1,20 +1,26 @@
 import app from './src/app.js'
 import * as dotenv from 'dotenv'
 import logger from './src/config/logger.js'
-import { InitializeQueues } from './src/config/queue.js'
+import { initializeQueues } from './src/config/queue.js';
+import { setupEmailProcessor } from './src/workers/email.worker.js';
+// import { InitializeQueues } from './src/config/queue.js'
 
 dotenv.config()
 
-// Initialize queues
-let queueShutdown; // Declare a variable to store the queue shutdown function
-try {
-  const { shutdown } = InitializeQueues();
-  queueShutdown = shutdown; // Assign the shutdown function for later use
-  logger.info('Queues initialized successfully');
-} catch (error) {
-  logger.fatal({ err: error }, 'Failed to initialize queues');
-  process.exit(1); // Exit if queues fail to initialize
-}
+// // Initialize queues
+// let queueShutdown; // Declare a variable to store the queue shutdown function
+// try {
+//   const { shutdown } = InitializeQueues();
+//   queueShutdown = shutdown; // Assign the shutdown function for later use
+//   logger.info('Queues initialized successfully');
+// } catch (error) {
+//   logger.fatal({ err: error }, 'Failed to initialize queues');
+//   process.exit(1); // Exit if queues fail to initialize
+// }
+
+// Initialize queues and workers
+const queueManager = initializeQueues();
+setupEmailProcessor();
 
 // unhandled promise rejections and exceptions
 process.on('unhandledRejection', (err) => {

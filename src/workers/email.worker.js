@@ -146,28 +146,190 @@
 
 
 
+// import { emailQueue } from "../config/queue.js";
+// import Newsletter from "../models/newsletter.model.js";
+// import { sendWelcomeEmail } from "../services/email/templates/email.service.simple.js";
+
+// emailQueue.process(async (job) => {
+//   const { name, email, subscriberId } = job.data;
+
+//   try {
+//     // Send the welcome email
+//     await sendWelcomeEmail({ name, email });
+
+//     // Update emailStatus to "sent" in the database
+//     await Newsletter.findByIdAndUpdate(subscriberId, {
+//       $set: { emailStatus: "sent" },
+//     });
+//     console.log(`Welcome email sent to ${email}`);
+//   } catch (error) {
+//     // Update emailStatus to "failed" in the database
+//     await Newsletter.findByIdAndUpdate(subscriberId, {
+//       $set: { emailStatus: "failed" },
+//     });
+//     console.error(`Failed to send welcome email to ${email}:`, error);
+//     throw error; // Let Bull handle retries
+//   }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// workers/emailProcessor.js
 import { emailQueue } from "../config/queue.js";
 import Newsletter from "../models/newsletter.model.js";
 import { sendWelcomeEmail } from "../services/email/templates/email.service.simple.js";
+import logger from "../config/logger.js";
 
-emailQueue.process(async (job) => {
-  const { name, email, subscriberId } = job.data;
+// Dedicated email processor with improved error handling and retry mechanism
+export function setupEmailProcessor() {
+  emailQueue.process(async (job) => {
+    const { name, email, subscriberId } = job.data;
+    const jobId = job.id;
+    
+    logger.info(
+      { jobId, subscriberId, email },
+      "Processing welcome email job"
+    );
 
+    try {
+      // Send the welcome email
+      await sendWelcomeEmail({ name, email });
+
+      // Update emailStatus to "sent" in the database
+      await Newsletter.findByIdAndUpdate(subscriberId, {
+        $set: { 
+          emailStatus: "sent",
+          emailSentAt: new Date()
+        }
+      });
+      
+      logger.info(
+        { jobId, subscriberId, email },
+        "Welcome email sent successfully"
+      );
+      
+      return { success: true, timestamp: new Date().toISOString() };
+    } catch (error) {
+      // Log detailed error information
+      logger.error(
+        { 
+          jobId, 
+          subscriberId, 
+          email, 
+          attempts: job.attemptsMade + 1,
+          err: error 
+        },
+        "Failed to send welcome email"
+      );
+
+      // On final attempt failure, update the database
+      if (job.attemptsMade + 1 >= job.opts.attempts) {
+        await Newsletter.findByIdAndUpdate(subscriberId, {
+          $set: { 
+            emailStatus: "failed",
+            lastErrorMessage: error.message || "Unknown error",
+            lastAttemptAt: new Date()
+          }
+        });
+        
+        logger.error(
+          { jobId, subscriberId, email },
+          "Maximum retry attempts reached for welcome email"
+        );
+      }
+      
+      // Throw the error to let Bull know the job failed
+      throw error;
+    }
+  });
+
+  // Additional event handlers for monitoring
+  emailQueue.on('active', (job) => {
+    logger.debug({ jobId: job.id }, 'Email job started processing');
+  });
+
+  emailQueue.on('progress', (job, progress) => {
+    logger.debug({ jobId: job.id, progress }, 'Email job progress update');
+  });
+
+  logger.info('Email processor has been set up successfully');
+}
+
+// Helper function to get job status information - useful for admin endpoints
+export async function getEmailQueueStats() {
   try {
-    // Send the welcome email
-    await sendWelcomeEmail({ name, email });
-
-    // Update emailStatus to "sent" in the database
-    await Newsletter.findByIdAndUpdate(subscriberId, {
-      $set: { emailStatus: "sent" },
-    });
-    console.log(`Welcome email sent to ${email}`);
+    const [
+      waiting, 
+      active, 
+      completed, 
+      failed
+    ] = await Promise.all([
+      emailQueue.getWaitingCount(),
+      emailQueue.getActiveCount(),
+      emailQueue.getCompletedCount(),
+      emailQueue.getFailedCount()
+    ]);
+    
+    return {
+      waiting,
+      active,
+      completed,
+      failed,
+      timestamp: new Date().toISOString()
+    };
   } catch (error) {
-    // Update emailStatus to "failed" in the database
-    await Newsletter.findByIdAndUpdate(subscriberId, {
-      $set: { emailStatus: "failed" },
-    });
-    console.error(`Failed to send welcome email to ${email}:`, error);
-    throw error; // Let Bull handle retries
+    logger.error({ err: error }, 'Failed to get email queue stats');
+    throw error;
   }
-});
+}
+
+// Function to clean up old jobs (can be called periodically)
+export async function cleanupOldJobs() {
+  try {
+    // Clean completed jobs older than 1 day
+    await emailQueue.clean(86400000, 'completed');
+    
+    // Clean failed jobs older than 7 days
+    await emailQueue.clean(7 * 86400000, 'failed');
+    
+    logger.info('Cleaned up old email queue jobs');
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to clean up old jobs');
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
