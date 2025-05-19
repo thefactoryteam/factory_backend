@@ -47,11 +47,24 @@ app.use(
 
 // Security middleware
 app.use(helmet())
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
+const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+
+  app.use(cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+  
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}))
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }));
+  
 app.use(hpp())
 
 // Body parser
