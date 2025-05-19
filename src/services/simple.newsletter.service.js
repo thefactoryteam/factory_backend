@@ -1,5 +1,5 @@
 import Newsletter from "../models/newsletter.model.js";
-import { sendWelcomeEmail } from "./email/templates/email.service.simple.js";
+import { emailQueue } from "../config/queue.js"; // Ensure emailQueue is imported
 import AppError from "../middlewares/errorHandler.js";
 
 export const simpleNewsletterService = async ({ name, email }) => {
@@ -10,15 +10,35 @@ export const simpleNewsletterService = async ({ name, email }) => {
   }
 
   // Save the subscription to the database
-  const newSubscriber = await Newsletter.create({ name, email });
-
-  // Send welcome email
+  let newSubscriber;
   try {
-    await sendWelcomeEmail({ name, email });
+    newSubscriber = await Newsletter.create({ name, email });
   } catch (error) {
-    // Rollback the subscription if email fails
-    await Newsletter.findByIdAndDelete(newSubscriber._id);
-    throw new AppError("Failed to send confirmation email. Please try again later.", 500);
+    throw new AppError("Failed to save subscription to the database.", 500);
+  }
+
+  // Add email to the queue for asynchronous processing
+  try {
+    await emailQueue.add(
+      {
+        name,
+        email,
+        subscriberId: newSubscriber._id, // Pass the subscriber ID for tracking
+      },
+      {
+        attempts: 3, // Retry up to 3 times
+        backoff: {
+          type: "exponential",
+          delay: 5000, // Start with a 5-second delay
+        },
+      }
+    );
+  } catch (error) {
+    // Update emailStatus to "failed" if adding to the queue fails
+    await Newsletter.findByIdAndUpdate(newSubscriber._id, {
+      $set: { emailStatus: "failed" },
+    });
+    throw new AppError("Failed to process email. Please try again later.", 500);
   }
 
   return newSubscriber;
