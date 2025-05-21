@@ -87,27 +87,27 @@ export const simpleNewsletterService = async ({ name, email }) => {
   }
 
   // Check if the email is already subscribed
-  const existingSubscriber = await Newsletter.findOne({ email });
+  const existingSubscriber = await Newsletter.findOne({ email }).lean();
   if (existingSubscriber) {
     // If already subscribed but welcome email failed previously, retry sending it
-    if (existingSubscriber.emailStatus === "failed") {
-      try {
-        await queueWelcomeEmail(existingSubscriber.name, existingSubscriber.email, existingSubscriber._id);
-        await Newsletter.findByIdAndUpdate(existingSubscriber._id, {
-          $set: { emailStatus: "queued", updatedAt: new Date() }
-        });
+    // if (existingSubscriber.emailStatus === "failed") {
+    //   try {
+    //     await queueWelcomeEmail(existingSubscriber.name, existingSubscriber.email, existingSubscriber._id);
+    //     await Newsletter.findByIdAndUpdate(existingSubscriber._id, {
+    //       $set: { emailStatus: "queued", updatedAt: new Date() }
+    //     });
         
-        return {
-          _id: existingSubscriber._id,
-          name: existingSubscriber.name,
-          email: existingSubscriber.email,
-          status: "existing_retry"
-        };
-      } catch (error) {
-        logger.error({ err: error, email }, "Failed to requeue welcome email for existing subscriber");
-        // Continue with the normal flow - inform user they're already subscribed
-      }
-    }
+    //     return {
+    //       _id: existingSubscriber._id,
+    //       name: existingSubscriber.name,
+    //       email: existingSubscriber.email,
+    //       status: "existing_retry"
+    //     };
+    //   } catch (error) {
+    //     logger.error({ err: error, email }, "Failed to requeue welcome email for existing subscriber");
+    //     // Continue with the normal flow - inform user they're already subscribed
+    //   }
+    // }
     
     throw new AppError("This email is already subscribed to the newsletter.", 400);
   }
