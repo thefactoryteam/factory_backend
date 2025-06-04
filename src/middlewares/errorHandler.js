@@ -45,7 +45,7 @@ export const errorHandler = (err, req, res, next) => {
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const errors = Object.values(err.errors).map((el) => el.message);
-    err = new AppError(`Invalid input data: ${errors.join('. ')}`, 400);
+    err = new AppError(errors.join('. '), 400);
   }
 
   // Mongoose cast error

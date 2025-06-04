@@ -46,3 +46,20 @@ export const contactFormLimiter = createRateLimiter({
     message: 'Too many requests, please try again later.'
 })
 
+// Rate limiting for booking submissions
+const bookingLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 3, // Limit each IP to 3 requests per windowMs
+    message: {
+      success: false,
+      message: 'Too many booking requests. Please try again in 15 minutes.',
+      retryAfter: 15 * 60
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Skip rate limiting for admin users (implement your own logic)
+    skip: (req) => {
+      return req.user && req.user.role === 'admin';
+    }
+  });
+
